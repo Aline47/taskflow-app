@@ -3,13 +3,13 @@ import { Plus, Trash2, Edit, Check, X, Calendar, MessageSquare, Send } from 'luc
 import { db } from './firebase';
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy, Timestamp, onSnapshot } from 'firebase/firestore';
 
-// --- NUEVO: Componente para el Modal de Comentarios ---
+// --- Componente para el Modal de Comentarios ---
 const CommentsModal = ({ taskId, onClose }) => {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Cargar comentarios en tiempo real
+  // Cargar comentarios en tiempo real (onSnapshot es ideal para esto aquí)
   useEffect(() => {
     const commentsRef = collection(db, 'tasks', taskId, 'comments');
     const q = query(commentsRef, orderBy('createdAt', 'asc'));
@@ -20,7 +20,6 @@ const CommentsModal = ({ taskId, onClose }) => {
       setLoading(false);
     });
 
-    // Limpiar el listener al desmontar el componente
     return () => unsubscribe();
   }, [taskId]);
 
@@ -44,11 +43,10 @@ const CommentsModal = ({ taskId, onClose }) => {
     >
       <div 
         className="bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-lg mx-4 flex flex-col h-[70vh]"
-        onClick={(e) => e.stopPropagation()} // Evita que el clic dentro del modal lo cierre
+        onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-2xl font-bold mb-4 text-white">Comentarios</h3>
         
-        {/* Lista de Comentarios */}
         <div className="flex-grow overflow-y-auto pr-2">
           {loading && <p className="text-gray-400">Cargando comentarios...</p>}
           {!loading && comments.length === 0 && (
@@ -66,7 +64,6 @@ const CommentsModal = ({ taskId, onClose }) => {
           </div>
         </div>
 
-        {/* Formulario para Nuevo Comentario */}
         <form onSubmit={handleAddComment} className="mt-4 flex items-center space-x-2">
           <input
             type="text"
@@ -111,7 +108,7 @@ const TaskCard = ({ task, onUpdate, onDelete }) => {
   const [editedText, setEditedText] = useState(task.text);
   const [isEditingDate, setIsEditingDate] = useState(false);
   const [deliveryDate, setDeliveryDate] = useState(task.deliveryDate ? task.deliveryDate.toDate().toISOString().split('T')[0] : '');
-  const [isCommentsOpen, setIsCommentsOpen] = useState(false); // <-- NUEVO: Estado para el modal
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
 
   const handleUpdateStatus = (newStatus) => onUpdate(task.id, { status: newStatus });
   const handleSaveText = () => {
@@ -128,7 +125,6 @@ const TaskCard = ({ task, onUpdate, onDelete }) => {
 
   return (
     <>
-      {/* <-- NUEVO: Renderiza el modal si está abierto --> */}
       {isCommentsOpen && <CommentsModal taskId={task.id} onClose={() => setIsCommentsOpen(false)} />}
 
       <div className="bg-gray-800 p-4 rounded-lg shadow-sm mb-3 flex flex-col justify-between min-h-[180px]">
@@ -170,7 +166,6 @@ const TaskCard = ({ task, onUpdate, onDelete }) => {
             <div className="flex space-x-2 items-center">
               <button onClick={() => setIsEditing(true)} className="p-1 text-gray-400 hover:text-white"><Edit size={16} /></button>
               <button onClick={() => onDelete(task.id)} className="p-1 text-red-500 hover:text-red-400"><Trash2 size={16} /></button>
-              {/* <-- NUEVO: Botón para abrir comentarios --> */}
               <button onClick={() => setIsCommentsOpen(true)} className="p-1 text-gray-400 hover:text-white"><MessageSquare size={16} /></button>
             </div>
             <div className="flex space-x-1">
@@ -220,36 +215,46 @@ const NewTaskForm = ({ onAddTask }) => {
 function App() {
   const [tasks, setTasks] = useState([]);
 
-  useEffect(() => {
+  const fetchTasks = async () => {
     const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const tasksData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setTasks(tasksData);
-    });
-    return () => unsubscribe();
+    const querySnapshot = await getDocs(q);
+    const tasksData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setTasks(tasksData);
+  };
+
+  useEffect(() => {
+    fetchTasks();
   }, []);
 
   const handleAddTask = async (text) => {
     try {
-      await addDoc(collection(db, "tasks"), {
+      const newTask = {
         text: text,
         status: 'pending',
         createdAt: Timestamp.now(),
         assignmentDate: Timestamp.now(),
         deliveryDate: null,
-      });
+      };
+      const docRef = await addDoc(collection(db, "tasks"), newTask);
+      setTasks([{ id: docRef.id, ...newTask }, ...tasks]);
     } catch (e) { console.error("Error adding document: ", e); }
   };
 
   const handleUpdateTask = async (id, updates) => {
     const taskDoc = doc(db, "tasks", id);
     await updateDoc(taskDoc, updates);
+    const updatedTasks = tasks.map(task => {
+        if (task.id === id) {
+            return { ...task, ...updates };
+        }
+        return task;
+    });
+    setTasks(updatedTasks);
   };
 
   const handleDeleteTask = async (id) => {
-    // Opcional: Eliminar subcolección de comentarios antes de borrar la tarea
-    // (Por ahora, se quedan en Firestore pero no son accesibles desde la UI)
     await deleteDoc(doc(db, "tasks", id));
+    setTasks(tasks.filter(task => task.id !== id));
   };
   
   const filterTasksByStatus = (status) => tasks.filter(task => task.status === status);
