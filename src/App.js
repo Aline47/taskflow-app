@@ -300,7 +300,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask, users, currentUser }) => {
     );
 };
 
-const UserManagementModal = ({ isOpen, onClose, onAddUser, onDeleteUser, allUsers, currentUser }) => {
+const UserManagementModal = ({ isOpen, onClose, onAddUser, onDeleteUser, onUpdateUserRole, allUsers, currentUser }) => {
     const [newUserName, setNewUserName] = useState('');
     const [newUserEmail, setNewUserEmail] = useState('');
     const [newUserRole, setNewUserRole] = useState('Colaborador');
@@ -337,7 +337,16 @@ const UserManagementModal = ({ isOpen, onClose, onAddUser, onDeleteUser, allUser
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4"><div ref={modalRef} className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-lg"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-gray-800">Gestionar Usuarios</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200"><X className="w-6 h-6 text-gray-600"/></button></div><div><form onSubmit={handleAddUser} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 border rounded-lg bg-gray-50"><input type="text" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Nombre completo" className="p-2 border border-gray-300 rounded-md" required /><input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} placeholder="Email de acceso" className="p-2 border border-gray-300 rounded-md" required /><input type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} placeholder="Contraseña" className="p-2 border border-gray-300 rounded-md" required /><select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)} className="p-2 border border-gray-300 rounded-md"><option value="Colaborador">Colaborador</option><option value="Coordinador">Coordinador</option></select><button type="submit" className="sm:col-span-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center"><UserPlus className="w-5 h-5 mr-2"/>Añadir Usuario</button>{error && <p className="text-red-500 text-sm sm:col-span-2">{error}</p>}</form><div className="space-y-3 max-h-80 overflow-y-auto pr-2">{allUsers.map(user => (<div key={user.uid} className="flex items-center justify-between p-3 bg-white border rounded-md"><div><p className="font-semibold">{user.name}</p><p className="text-sm text-gray-500">{user.email}</p><p className="text-xs text-gray-400 font-mono">{user.role}</p></div>{currentUser.uid !== user.uid && (<button onClick={() => onDeleteUser(user.uid, user.name)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100" aria-label={`Eliminar a ${user.name}`}><Trash2 className="w-5 h-5"/></button>)}</div>))}</div></div></div></div>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4"><div ref={modalRef} className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-lg"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-gray-800">Gestionar Usuarios</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200"><X className="w-6 h-6 text-gray-600"/></button></div><div><form onSubmit={handleAddUser} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 border rounded-lg bg-gray-50"><input type="text" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Nombre completo" className="p-2 border border-gray-300 rounded-md" required /><input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} placeholder="Email de acceso" className="p-2 border border-gray-300 rounded-md" required /><input type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} placeholder="Contraseña" className="p-2 border border-gray-300 rounded-md" required /><select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)} className="p-2 border border-gray-300 rounded-md"><option value="Colaborador">Colaborador</option><option value="Coordinador">Coordinador</option></select><button type="submit" className="sm:col-span-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center"><UserPlus className="w-5 h-5 mr-2"/>Añadir Usuario</button>{error && <p className="text-red-500 text-sm sm:col-span-2">{error}</p>}</form><div className="space-y-3 max-h-80 overflow-y-auto pr-2">{allUsers.map(user => (<div key={user.uid} className="flex items-center justify-between p-3 bg-white border rounded-md"><div><p className="font-semibold">{user.name}</p><p className="text-sm text-gray-500">{user.email}</p>
+        {currentUser.uid === user.uid ? (
+            <p className="text-xs font-medium bg-gray-200 text-gray-700 px-2 py-1 rounded-full inline-block mt-1">{user.role}</p>
+        ) : (
+            <select value={user.role} onChange={(e) => onUpdateUserRole(user.uid, e.target.value)} className="mt-1 p-1 border border-gray-300 rounded-md text-xs w-full">
+                <option value="Colaborador">Colaborador</option>
+                <option value="Coordinador">Coordinador</option>
+            </select>
+        )}
+        </div>{currentUser.uid !== user.uid && (<button onClick={() => onDeleteUser(user.uid, user.name)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100" aria-label={`Eliminar a ${user.name}`}><Trash2 className="w-5 h-5"/></button>)}</div>))}</div></div></div></div>
     );
 };
 
@@ -492,6 +501,15 @@ export default function App() {
         }
     };
 
+    const handleUpdateUserRole = async (userId, newRole) => {
+        const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userId);
+        try {
+            await updateDoc(userDocRef, { role: newRole });
+        } catch (error) {
+            console.error("Error al actualizar el rol del usuario:", error);
+        }
+    };
+
     const handleDeleteUser = async (userId, userName) => {
         alert(`La eliminación de usuarios desde el cliente no es segura y está deshabilitada. Se necesita una función de backend.`);
     };
@@ -555,7 +573,15 @@ export default function App() {
             {currentUser.role === 'Coordinador' && (
                 <>
                     <AddTaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} onAddTask={handleAddTask} users={allUsers} currentUser={currentUser} />
-                    <UserManagementModal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} onAddUser={handleAddUser} onDeleteUser={handleDeleteUser} allUsers={allUsers} currentUser={currentUser} />
+                    <UserManagementModal 
+                        isOpen={isUserModalOpen} 
+                        onClose={() => setIsUserModalOpen(false)} 
+                        onAddUser={handleAddUser} 
+                        onDeleteUser={handleDeleteUser}
+                        onUpdateUserRole={handleUpdateUserRole}
+                        allUsers={allUsers} 
+                        currentUser={currentUser} 
+                    />
                 </>
             )}
             <footer className="text-center p-4 text-sm text-gray-500"><p>ID de la Sesión para compartir: {appId}</p></footer>
