@@ -387,8 +387,8 @@ const AuthScreen = ({ onLogin, onRegister, error, isRegisterMode }) => {
 export default function App() {
     const [tasks, setTasks] = useState([]);
     const [allUsers, setAllUsers] = useState([]);
-    const [currentUser, setCurrentUser] = useState(undefined); // undefined para estado inicial
-    const [usersLoading, setUsersLoading] = useState(true);
+    const [currentUser, setCurrentUser] = useState(undefined);
+    const [loading, setLoading] = useState(true); // Un único estado de carga
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [authError, setAuthError] = useState('');
@@ -397,50 +397,32 @@ export default function App() {
     const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/users`);
 
     useEffect(() => {
-        // Listener para la colección de usuarios.
-        const unsubscribeUsers = onSnapshot(usersCollectionRef, 
-            (snapshot) => {
-                const usersData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                setAllUsers(usersData);
-                setUsersLoading(false); 
-            },
-            (error) => {
-                console.error("Error fetching users:", error);
-                setUsersLoading(false);
-            }
-        );
+        // Este listener se encarga de todo: usuarios y autenticación.
+        const unsubscribeUsers = onSnapshot(usersCollectionRef, (usersSnapshot) => {
+            const usersData = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            setAllUsers(usersData);
 
-        // Listener para el estado de autenticación.
-        const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-            if (user) {
-                // Si hay un usuario en Auth, buscamos su perfil en nuestra lista de usuarios.
-                // Esto se re-evaluará cuando 'allUsers' cambie gracias al siguiente useEffect.
-            } else {
-                setCurrentUser(null); // No hay usuario, se establece a null.
-            }
+            // Una vez que tenemos la lista de usuarios, comprobamos el estado de auth.
+            const unsubscribeAuth = onAuthStateChanged(auth, (authUser) => {
+                if (authUser) {
+                    const userProfile = usersData.find(u => u.uid === authUser.uid);
+                    setCurrentUser(userProfile || null); // Si no encuentra perfil, lo trata como nulo
+                } else {
+                    setCurrentUser(null);
+                }
+                setLoading(false); // Terminamos de cargar solo después de cruzar ambos datos
+            });
+
+            // Devolvemos la función de limpieza para el listener de auth
+            return () => unsubscribeAuth();
+        }, (error) => {
+            console.error("Error al cargar usuarios:", error);
+            setLoading(false); // Si hay error, dejamos de cargar para mostrar algo
         });
 
-        return () => { unsubscribeAuth(); unsubscribeUsers(); };
+        // Devolvemos la función de limpieza para el listener de usuarios
+        return () => unsubscribeUsers();
     }, []);
-
-    useEffect(() => {
-        // Este efecto se ejecuta cuando la lista de usuarios cambia o el estado de auth cambia.
-        if (usersLoading) return; // No hacer nada hasta que la lista de usuarios esté cargada.
-
-        const authUser = auth.currentUser;
-        if (authUser) {
-            const userProfile = allUsers.find(u => u.uid === authUser.uid);
-            if (userProfile) {
-                setCurrentUser(userProfile);
-            } else {
-                // Usuario autenticado pero sin perfil en la DB, desloguear.
-                signOut(auth);
-                setCurrentUser(null);
-            }
-        } else {
-            setCurrentUser(null);
-        }
-    }, [allUsers, usersLoading]); // Depende de la lista de usuarios y su estado de carga.
 
      useEffect(() => {
         if (!currentUser) return;
@@ -528,18 +510,16 @@ export default function App() {
         alert(`La eliminación de usuarios desde el cliente no es segura y está deshabilitada. Se necesita una función de backend.`);
     };
 
-    // Render Logic
-    if (currentUser === undefined || (currentUser === null && usersLoading)) {
+    // Lógica de Renderizado
+    if (loading) {
         return <div className="min-h-screen flex justify-center items-center bg-gray-50"><Loader2 className="w-16 h-16 text-indigo-600 animate-spin" /></div>;
     }
     
-    if (currentUser === null) {
-        // Si no hay usuario y la lista de usuarios ya cargó, decidimos si registrar o loguear.
+    if (!currentUser) {
         const isFirstUser = allUsers.length === 0;
         return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} isRegisterMode={isFirstUser} />;
     }
     
-    // Si hay un usuario, mostramos el tablero.
     const visibleTasks = currentUser.role === 'Coordinador' ? tasks : tasks.filter(task => task.assignedTo === currentUser.name || task.status === 'Completada');
     const pendingTasks = visibleTasks.filter(t => t.status === 'Pendiente');
     const inProgressTasks = visibleTasks.filter(t => t.status === 'En Progreso');
