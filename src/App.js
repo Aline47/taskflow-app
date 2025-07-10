@@ -146,7 +146,7 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
     );
 };
 
-const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser, allUsers }) => {
+const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser, allUsers, isReadOnly = false }) => {
     const { title, description, assignedTo, status, assignmentDate, deliveryDate } = task;
     const [isCommentsOpen, setIsCommentsOpen] = useState(false);
     const [isEditingDate, setIsEditingDate] = useState(false);
@@ -175,9 +175,9 @@ const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser, allUsers }) =
         }
     };
 
-    const canDelete = currentUser.role === 'Coordinador';
-    const canUpdate = currentUser.role === 'Coordinador' || currentUser.name === assignedTo;
-    const canChangeAssignee = currentUser.role === 'Coordinador';
+    const canDelete = currentUser.role === 'Coordinador' && !isReadOnly;
+    const canUpdate = (currentUser.role === 'Coordinador' || currentUser.name === assignedTo) && !isReadOnly;
+    const canChangeAssignee = currentUser.role === 'Coordinador' && !isReadOnly;
 
     return (
         <>
@@ -190,7 +190,7 @@ const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser, allUsers }) =
                     <div className="flex justify-between"><span>Asignado:</span> <span>{formatDate(assignmentDate)}</span></div>
                     <div className="flex justify-between items-center">
                         <span>Entrega:</span>
-                        {isEditingDate ? (
+                        {isEditingDate && canUpdate ? (
                             <div className="flex items-center gap-1">
                                 <input type="date" value={newDeliveryDate} onChange={(e) => setNewDeliveryDate(e.target.value)} className="bg-gray-50 border-gray-300 p-1 rounded text-xs"/>
                                 <button onClick={handleSaveDate} className="text-green-500"><Check size={16}/></button>
@@ -246,17 +246,18 @@ const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser, allUsers }) =
     );
 };
 
-const TaskColumn = ({ title, tasks, onUpdateTask, onDeleteTask, currentUser, allUsers }) => {
+const TaskColumn = ({ title, tasks, onUpdateTask, onDeleteTask, currentUser, allUsers, isReadOnly = false }) => {
     const columnStyles = {
         'Pendiente': { bg: 'bg-blue-50', border: 'border-blue-500' },
         'En Progreso': { bg: 'bg-yellow-50', border: 'border-yellow-500' },
         'Completada': { bg: 'bg-green-50', border: 'border-green-500' },
+        'Total Tareas': { bg: 'bg-gray-100', border: 'border-gray-400' },
     };
     const style = columnStyles[title] || { bg: 'bg-gray-100', border: 'border-gray-400' };
     return (
         <div className={`flex-1 min-w-[300px] p-4 rounded-xl ${style.bg}`}>
             <h3 className={`font-bold text-lg mb-4 pb-2 border-b-2 ${style.border} text-gray-700`}>{title} ({tasks.length})</h3>
-            <div>{tasks.map(task => <TaskCard key={task.id} task={task} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} currentUser={currentUser} allUsers={allUsers}/>)}</div>
+            <div>{tasks.map(task => <TaskCard key={task.id} task={task} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} currentUser={currentUser} allUsers={allUsers} isReadOnly={isReadOnly}/>)}</div>
         </div>
     );
 };
@@ -388,7 +389,7 @@ export default function App() {
     const [tasks, setTasks] = useState([]);
     const [allUsers, setAllUsers] = useState([]);
     const [currentUser, setCurrentUser] = useState(undefined);
-    const [loading, setLoading] = useState(true); // Un único estado de carga
+    const [loading, setLoading] = useState(true);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [authError, setAuthError] = useState('');
@@ -397,30 +398,26 @@ export default function App() {
     const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/users`);
 
     useEffect(() => {
-        // Este listener se encarga de todo: usuarios y autenticación.
         const unsubscribeUsers = onSnapshot(usersCollectionRef, (usersSnapshot) => {
             const usersData = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
             setAllUsers(usersData);
 
-            // Una vez que tenemos la lista de usuarios, comprobamos el estado de auth.
             const unsubscribeAuth = onAuthStateChanged(auth, (authUser) => {
                 if (authUser) {
                     const userProfile = usersData.find(u => u.uid === authUser.uid);
-                    setCurrentUser(userProfile || null); // Si no encuentra perfil, lo trata como nulo
+                    setCurrentUser(userProfile || null);
                 } else {
                     setCurrentUser(null);
                 }
-                setLoading(false); // Terminamos de cargar solo después de cruzar ambos datos
+                setLoading(false);
             });
 
-            // Devolvemos la función de limpieza para el listener de auth
             return () => unsubscribeAuth();
         }, (error) => {
             console.error("Error al cargar usuarios:", error);
-            setLoading(false); // Si hay error, dejamos de cargar para mostrar algo
+            setLoading(false);
         });
 
-        // Devolvemos la función de limpieza para el listener de usuarios
         return () => unsubscribeUsers();
     }, []);
 
@@ -559,10 +556,11 @@ export default function App() {
                     </div>
                 )}
                 <div className="container mx-auto">
-                    <div className="flex flex-col md:flex-row gap-6 overflow-x-auto pb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                         <TaskColumn title="Pendiente" tasks={pendingTasks} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} currentUser={currentUser} allUsers={allUsers} />
                         <TaskColumn title="En Progreso" tasks={inProgressTasks} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} currentUser={currentUser} allUsers={allUsers} />
                         <TaskColumn title="Completada" tasks={completedTasks} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} currentUser={currentUser} allUsers={allUsers} />
+                        <TaskColumn title="Total Tareas" tasks={tasks} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} currentUser={currentUser} allUsers={allUsers} isReadOnly={true} />
                     </div>
                 </div>
             </main>
