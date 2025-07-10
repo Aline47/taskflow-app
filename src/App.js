@@ -287,7 +287,6 @@ export default function App() {
                         ...userData
                     });
                 } else {
-                    // User exists in Auth but not in Firestore, log them out.
                     await signOut(auth);
                     setCurrentUser(null);
                 }
@@ -297,10 +296,16 @@ export default function App() {
             setAuthLoading(false);
         });
 
-        const unsubscribeUsers = onSnapshot(usersCollectionRef, (snapshot) => {
-            setAllUsers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
-            setUsersLoading(false); 
-        });
+        const unsubscribeUsers = onSnapshot(usersCollectionRef, 
+            (snapshot) => {
+                setAllUsers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+                setUsersLoading(false); 
+            },
+            (error) => {
+                console.error("Error fetching users:", error);
+                setUsersLoading(false);
+            }
+        );
 
         return () => {
             unsubscribeAuth();
@@ -389,11 +394,7 @@ export default function App() {
     const handleDeleteUser = async (userId, userName) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar a ${userName}? Esta acción no se puede deshacer y borrará su cuenta de acceso.`)) {
             try {
-                // This is a simplified approach for client-side deletion.
-                // In a real-world app, this should be a secured backend function.
                 await deleteDoc(doc(db, `artifacts/${appId}/public/data/users`, userId));
-                // Note: This does not delete the user from Firebase Auth.
-                // A backend function is required for that.
                 alert(`Usuario ${userName} eliminado de la base de datos.`);
             } catch (error) {
                 console.error("Error deleting user from Firestore: ", error);
