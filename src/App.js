@@ -398,40 +398,34 @@ export default function App() {
     const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/users`);
 
     useEffect(() => {
-        const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+        const unsubscribeUsers = onSnapshot(usersCollectionRef, 
+            (snapshot) => {
+                const usersData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                setAllUsers(usersData);
+                setUsersLoading(false); 
+            },
+            (error) => {
+                console.error("Error fetching users:", error);
+                setUsersLoading(false);
+            }
+        );
+
+        const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
             if (user) {
-                // No establecemos currentUser aquí, esperamos a que el listener de usuarios lo haga
+                const userDocQuery = query(usersCollectionRef, where("uid", "==", user.uid));
+                getDocs(userDocQuery).then(userDocSnapshot => {
+                    if (!userDocSnapshot.empty) {
+                        setCurrentUser({ uid: user.uid, email: user.email, ...userDocSnapshot.docs[0].data() });
+                    } else {
+                        signOut(auth);
+                    }
+                    setAuthLoading(false);
+                });
             } else {
                 setCurrentUser(null);
                 setAuthLoading(false);
             }
         });
-
-        const unsubscribeUsers = onSnapshot(usersCollectionRef, 
-            (snapshot) => {
-                const usersData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                setAllUsers(usersData);
-                
-                const loggedInUser = auth.currentUser;
-                if (loggedInUser) {
-                    const currentUserData = usersData.find(u => u.uid === loggedInUser.uid);
-                    if (currentUserData) {
-                        setCurrentUser(currentUserData);
-                    } else {
-                        // El usuario está en Auth pero no en Firestore, lo deslogueamos.
-                        signOut(auth);
-                        setCurrentUser(null);
-                    }
-                }
-                setUsersLoading(false); 
-                setAuthLoading(false);
-            },
-            (error) => {
-                console.error("Error fetching users:", error);
-                setUsersLoading(false);
-                setAuthLoading(false);
-            }
-        );
 
         return () => { unsubscribeAuth(); unsubscribeUsers(); };
     }, []);
