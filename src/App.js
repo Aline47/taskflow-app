@@ -387,8 +387,7 @@ const AuthScreen = ({ onLogin, onRegister, error, isRegisterMode }) => {
 export default function App() {
     const [tasks, setTasks] = useState([]);
     const [allUsers, setAllUsers] = useState([]);
-    const [currentUser, setCurrentUser] = useState(null);
-    const [authLoading, setAuthLoading] = useState(true);
+    const [currentUser, setCurrentUser] = useState(undefined); // undefined para estado inicial
     const [usersLoading, setUsersLoading] = useState(true);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -398,6 +397,7 @@ export default function App() {
     const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/users`);
 
     useEffect(() => {
+        // Listener para la colección de usuarios.
         const unsubscribeUsers = onSnapshot(usersCollectionRef, 
             (snapshot) => {
                 const usersData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
@@ -410,25 +410,37 @@ export default function App() {
             }
         );
 
+        // Listener para el estado de autenticación.
         const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
             if (user) {
-                const userDocQuery = query(usersCollectionRef, where("uid", "==", user.uid));
-                getDocs(userDocQuery).then(userDocSnapshot => {
-                    if (!userDocSnapshot.empty) {
-                        setCurrentUser({ uid: user.uid, email: user.email, ...userDocSnapshot.docs[0].data() });
-                    } else {
-                        signOut(auth);
-                    }
-                    setAuthLoading(false);
-                });
+                // Si hay un usuario en Auth, buscamos su perfil en nuestra lista de usuarios.
+                // Esto se re-evaluará cuando 'allUsers' cambie gracias al siguiente useEffect.
             } else {
-                setCurrentUser(null);
-                setAuthLoading(false);
+                setCurrentUser(null); // No hay usuario, se establece a null.
             }
         });
 
         return () => { unsubscribeAuth(); unsubscribeUsers(); };
     }, []);
+
+    useEffect(() => {
+        // Este efecto se ejecuta cuando la lista de usuarios cambia o el estado de auth cambia.
+        if (usersLoading) return; // No hacer nada hasta que la lista de usuarios esté cargada.
+
+        const authUser = auth.currentUser;
+        if (authUser) {
+            const userProfile = allUsers.find(u => u.uid === authUser.uid);
+            if (userProfile) {
+                setCurrentUser(userProfile);
+            } else {
+                // Usuario autenticado pero sin perfil en la DB, desloguear.
+                signOut(auth);
+                setCurrentUser(null);
+            }
+        } else {
+            setCurrentUser(null);
+        }
+    }, [allUsers, usersLoading]); // Depende de la lista de usuarios y su estado de carga.
 
      useEffect(() => {
         if (!currentUser) return;
@@ -516,15 +528,18 @@ export default function App() {
         alert(`La eliminación de usuarios desde el cliente no es segura y está deshabilitada. Se necesita una función de backend.`);
     };
 
-    if (authLoading || usersLoading) {
+    // Render Logic
+    if (currentUser === undefined || (currentUser === null && usersLoading)) {
         return <div className="min-h-screen flex justify-center items-center bg-gray-50"><Loader2 className="w-16 h-16 text-indigo-600 animate-spin" /></div>;
     }
     
-    if (!currentUser) {
+    if (currentUser === null) {
+        // Si no hay usuario y la lista de usuarios ya cargó, decidimos si registrar o loguear.
         const isFirstUser = allUsers.length === 0;
         return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} isRegisterMode={isFirstUser} />;
     }
     
+    // Si hay un usuario, mostramos el tablero.
     const visibleTasks = currentUser.role === 'Coordinador' ? tasks : tasks.filter(task => task.assignedTo === currentUser.name || task.status === 'Completada');
     const pendingTasks = visibleTasks.filter(t => t.status === 'Pendiente');
     const inProgressTasks = visibleTasks.filter(t => t.status === 'En Progreso');
