@@ -23,7 +23,7 @@ import {
     signOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { Plus, User, LogIn, LogOut, Loader2, Users, Trash2, ShieldCheck, UserCheck, UserPlus, X, Eye, EyeOff, RefreshCw, Calendar, MessageSquare, Send, Check } from 'lucide-react';
+import { Plus, User, LogIn, LogOut, Loader2, Users, Trash2, ShieldCheck, UserCheck, UserPlus, X, Eye, EyeOff, RefreshCw, Calendar, MessageSquare, Send, Check, AlertTriangle } from 'lucide-react';
 
 // --- Configuración de Firebase (Asegúrate de tener tus variables de entorno) ---
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG 
@@ -82,38 +82,43 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null); // <-- NUEVO: Estado para manejar errores
     const commentsCollectionRef = collection(db, `artifacts/${appId}/public/data/tasks/${taskId}/comments`);
   
     useEffect(() => {
-      // FIX: Se elimina orderBy para evitar errores si falta el índice en Firestore.
-      // La ordenación ahora se realiza en el lado del cliente.
       const q = query(commentsCollectionRef);
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const commentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        // Ordenar los comentarios por fecha en el cliente (más antiguos primero)
-        commentsData.sort((a, b) => {
-            const timeA = a.createdAt?.toMillis() || 0;
-            const timeB = b.createdAt?.toMillis() || 0;
-            return timeA - timeB;
-        });
-
-        setComments(commentsData);
-        setLoading(false);
-      });
+      const unsubscribe = onSnapshot(q, 
+        (querySnapshot) => { // Callback de éxito
+            const commentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            commentsData.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+            setComments(commentsData);
+            setLoading(false);
+            setError(null); // Limpiar errores si la carga es exitosa
+        }, 
+        (err) => { // <-- NUEVO: Callback de error
+            console.error("Error al cargar comentarios: ", err);
+            setError("No se pudieron cargar los comentarios. Revisa las reglas de seguridad de Firestore.");
+            setLoading(false);
+        }
+      );
       return () => unsubscribe();
     }, [taskId]);
   
     const handleAddComment = async (e) => {
       e.preventDefault();
       if (newComment.trim() === '') return;
-      await addDoc(commentsCollectionRef, {
-        text: newComment,
-        authorName: currentUser.name,
-        authorId: currentUser.uid,
-        createdAt: serverTimestamp(),
-      });
-      setNewComment('');
+      try {
+        await addDoc(commentsCollectionRef, {
+            text: newComment,
+            authorName: currentUser.name,
+            authorId: currentUser.uid,
+            createdAt: serverTimestamp(),
+        });
+        setNewComment('');
+      } catch (err) {
+        console.error("Error al añadir comentario: ", err);
+        setError("No se pudo enviar el comentario.");
+      }
     };
   
     return (
@@ -122,8 +127,9 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
           <h3 className="text-2xl font-bold mb-4 text-gray-800">Comentarios</h3>
           <div className="flex-grow overflow-y-auto pr-2 -mr-2 space-y-4">
             {loading && <p className="text-gray-500">Cargando...</p>}
-            {!loading && comments.length === 0 && <p className="text-gray-500 text-center mt-8">No hay comentarios.</p>}
-            {comments.map(comment => (
+            {error && <div className="text-red-600 bg-red-100 p-3 rounded-md flex items-center gap-2"><AlertTriangle size={20}/><span>{error}</span></div>}
+            {!loading && !error && comments.length === 0 && <p className="text-gray-500 text-center mt-8">No hay comentarios.</p>}
+            {!loading && !error && comments.map(comment => (
               <div key={comment.id} className="bg-gray-100 p-3 rounded-md">
                 <p className="font-semibold text-sm text-indigo-700">{comment.authorName}</p>
                 <p className="text-gray-700 break-words">{comment.text}</p>
@@ -385,20 +391,18 @@ export default function App() {
      useEffect(() => {
         if (!currentUser) return;
         
-        // FIX: Se elimina orderBy para evitar errores si falta el índice en Firestore.
         const q = query(tasksCollectionRef);
-        const unsubscribeTasks = onSnapshot(q, (snapshot) => {
-            const tasksData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-            
-            // Ordenar las tareas por fecha en el cliente (más nuevas primero)
-            tasksData.sort((a, b) => {
-                const timeA = a.createdAt?.toMillis() || 0;
-                const timeB = b.createdAt?.toMillis() || 0;
-                return timeB - timeA; // Orden descendente
-            });
-
-            setTasks(tasksData);
-        });
+        const unsubscribeTasks = onSnapshot(q, 
+            (snapshot) => {
+                const tasksData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                tasksData.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+                setTasks(tasksData);
+            },
+            (err) => { // <-- NUEVO: Manejo de errores para las tareas
+                console.error("Error al cargar tareas:", err);
+                // Opcional: podrías mostrar un error en la UI principal
+            }
+        );
         return () => unsubscribeTasks();
     }, [currentUser]);
 
@@ -451,7 +455,7 @@ export default function App() {
                 uid: user.uid, name: userData.name, email: userData.email, role: userData.role
             });
             await signOut(tempAuth);
-return true;
+            return true;
         } catch (error) {
             console.error("Error creating user:", error);
             return false;
