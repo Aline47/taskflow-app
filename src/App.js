@@ -153,7 +153,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask, users, currentUser }) => {
     );
 };
 
-const UserManagementModal = ({ isOpen, onClose, onAddUser, onDeleteUser, allUsers }) => {
+const UserManagementModal = ({ isOpen, onClose, onAddUser, onDeleteUser, allUsers, currentUser }) => {
     const [newUserName, setNewUserName] = useState('');
     const [newUserEmail, setNewUserEmail] = useState('');
     const [newUserRole, setNewUserRole] = useState('Colaborador');
@@ -204,7 +204,17 @@ const UserManagementModal = ({ isOpen, onClose, onAddUser, onDeleteUser, allUser
             </form>
             <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
             {allUsers.map(user => (
-                <div key={user.uid} className="flex items-center justify-between p-3 bg-white border rounded-md"><div><p className="font-semibold">{user.name}</p><p className="text-sm text-gray-500">{user.email}</p><p className="text-xs text-gray-400 font-mono">{user.role}</p></div>
+                <div key={user.uid} className="flex items-center justify-between p-3 bg-white border rounded-md">
+                    <div>
+                        <p className="font-semibold">{user.name}</p>
+                        <p className="text-sm text-gray-500">{user.email}</p>
+                        <p className="text-xs text-gray-400 font-mono">{user.role}</p>
+                    </div>
+                    {currentUser.uid !== user.uid && (
+                        <button onClick={() => onDeleteUser(user.uid, user.name)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100" aria-label={`Eliminar a ${user.name}`}>
+                            <Trash2 className="w-5 h-5"/>
+                        </button>
+                    )}
                 </div>
             ))}
         </div></div></div></div>
@@ -255,6 +265,7 @@ export default function App() {
     const [allUsers, setAllUsers] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
+    const [usersLoading, setUsersLoading] = useState(true);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [authError, setAuthError] = useState('');
@@ -263,17 +274,22 @@ export default function App() {
     const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/users`);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                const userDoc = await getDocs(query(usersCollectionRef, where("uid", "==", user.uid)));
+                const userDocQuery = query(usersCollectionRef, where("uid", "==", user.uid));
+                const userDocSnapshot = await getDocs(userDocQuery);
 
-                if (!userDoc.empty) {
-                    const userData = userDoc.docs[0].data();
+                if (!userDocSnapshot.empty) {
+                    const userData = userDocSnapshot.docs[0].data();
                     setCurrentUser({
                         uid: user.uid,
                         email: user.email,
                         ...userData
                     });
+                } else {
+                    // User exists in Auth but not in Firestore, log them out.
+                    await signOut(auth);
+                    setCurrentUser(null);
                 }
             } else {
                 setCurrentUser(null);
@@ -283,10 +299,11 @@ export default function App() {
 
         const unsubscribeUsers = onSnapshot(usersCollectionRef, (snapshot) => {
             setAllUsers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+            setUsersLoading(false); 
         });
 
         return () => {
-            unsubscribe();
+            unsubscribeAuth();
             unsubscribeUsers();
         };
     }, []);
@@ -308,10 +325,9 @@ export default function App() {
                 uid: user.uid,
                 name: name,
                 email: email,
-                role: 'Coordinador' // First user is always a coordinator
+                role: 'Coordinador'
             };
             await setDoc(doc(db, `artifacts/${appId}/public/data/users`, user.uid), newUser);
-            setCurrentUser(newUser);
         } catch (error) {
             setAuthError('No se pudo registrar. El email puede estar en uso.');
             console.error(error);
@@ -351,9 +367,7 @@ export default function App() {
 
     const handleAddUser = async (userData) => {
         try {
-            // This is a simplified approach. In a real app, you'd use Firebase Functions
-            // to create users to avoid exposing admin credentials on the client.
-            const tempApp = initializeApp(firebaseConfig, 'temp-user-creation');
+            const tempApp = initializeApp(firebaseConfig, `temp-user-creation-${Date.now()}`);
             const tempAuth = getAuth(tempApp);
             const userCredential = await createUserWithEmailAndPassword(tempAuth, userData.email, userData.password);
             const user = userCredential.user;
@@ -365,9 +379,6 @@ export default function App() {
                 role: userData.role
             });
             await signOut(tempAuth);
-            // This is a workaround to delete the temporary app instance
-            // In a real SDK environment, you would use deleteApp(tempApp)
-            // but that might not be available here.
             return true;
         } catch (error) {
             console.error("Error creating user:", error);
@@ -375,7 +386,25 @@ export default function App() {
         }
     };
 
-    if (authLoading) return <div className="min-h-screen flex justify-center items-center bg-gray-50"><Loader2 className="w-16 h-16 text-indigo-600 animate-spin" /></div>;
+    const handleDeleteUser = async (userId, userName) => {
+        if (window.confirm(`¿Estás seguro de que quieres eliminar a ${userName}? Esta acción no se puede deshacer y borrará su cuenta de acceso.`)) {
+            try {
+                // This is a simplified approach for client-side deletion.
+                // In a real-world app, this should be a secured backend function.
+                await deleteDoc(doc(db, `artifacts/${appId}/public/data/users`, userId));
+                // Note: This does not delete the user from Firebase Auth.
+                // A backend function is required for that.
+                alert(`Usuario ${userName} eliminado de la base de datos.`);
+            } catch (error) {
+                console.error("Error deleting user from Firestore: ", error);
+                alert("No se pudo eliminar el usuario de la base de datos.");
+            }
+        }
+    };
+
+    if (authLoading || usersLoading) {
+        return <div className="min-h-screen flex justify-center items-center bg-gray-50"><Loader2 className="w-16 h-16 text-indigo-600 animate-spin" /></div>;
+    }
     
     if (!currentUser) {
         const isFirstUser = allUsers.length === 0;
@@ -432,7 +461,14 @@ export default function App() {
             {currentUser.role === 'Coordinador' && (
                 <>
                     <AddTaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} onAddTask={handleAddTask} users={allUsers} currentUser={currentUser} />
-                    <UserManagementModal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} onAddUser={handleAddUser} allUsers={allUsers} />
+                    <UserManagementModal 
+                        isOpen={isUserModalOpen} 
+                        onClose={() => setIsUserModalOpen(false)} 
+                        onAddUser={handleAddUser} 
+                        onDeleteUser={handleDeleteUser}
+                        allUsers={allUsers}
+                        currentUser={currentUser}
+                    />
                 </>
             )}
             <footer className="text-center p-4 text-sm text-gray-500"><p>ID de la Sesión para compartir: {appId}</p></footer>
