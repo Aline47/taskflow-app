@@ -23,7 +23,7 @@ import {
     signOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { Plus, User, LogIn, LogOut, Loader2, Users, Trash2, ShieldCheck, UserCheck, UserPlus, X, Eye, EyeOff, RefreshCw, Calendar, MessageSquare, Send, Check, AlertTriangle } from 'lucide-react';
+import { Plus, User, LogIn, LogOut, Loader2, Users, Trash2, ShieldCheck, UserCheck, UserPlus, X, Eye, EyeOff, RefreshCw, Calendar, MessageSquare, Send, Check, AlertTriangle, Edit } from 'lucide-react';
 
 // --- Configuración de Firebase (Asegúrate de tener tus variables de entorno) ---
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG 
@@ -82,20 +82,20 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null); // <-- NUEVO: Estado para manejar errores
+    const [error, setError] = useState(null);
     const commentsCollectionRef = collection(db, `artifacts/${appId}/public/data/tasks/${taskId}/comments`);
   
     useEffect(() => {
       const q = query(commentsCollectionRef);
       const unsubscribe = onSnapshot(q, 
-        (querySnapshot) => { // Callback de éxito
+        (querySnapshot) => {
             const commentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             commentsData.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
             setComments(commentsData);
             setLoading(false);
-            setError(null); // Limpiar errores si la carga es exitosa
+            setError(null);
         }, 
-        (err) => { // <-- NUEVO: Callback de error
+        (err) => {
             console.error("Error al cargar comentarios: ", err);
             setError("No se pudieron cargar los comentarios. Revisa las reglas de seguridad de Firestore.");
             setLoading(false);
@@ -146,11 +146,13 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
     );
 };
 
-const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser }) => {
+const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser, allUsers }) => {
     const { title, description, assignedTo, status, assignmentDate, deliveryDate } = task;
     const [isCommentsOpen, setIsCommentsOpen] = useState(false);
     const [isEditingDate, setIsEditingDate] = useState(false);
     const [newDeliveryDate, setNewDeliveryDate] = useState(deliveryDate ? deliveryDate.toDate().toISOString().split('T')[0] : '');
+    const [isEditingAssignee, setIsEditingAssignee] = useState(false);
+    const [newAssignee, setNewAssignee] = useState(assignedTo);
 
     const statusColors = {
         'Pendiente': 'bg-blue-100 text-blue-800 border-l-blue-500',
@@ -159,14 +161,23 @@ const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser }) => {
     };
 
     const handleStatusChange = (e) => onUpdateTask(task.id, { status: e.target.value });
+    
     const handleSaveDate = () => {
         const dateToSave = newDeliveryDate ? Timestamp.fromDate(new Date(newDeliveryDate)) : null;
         onUpdateTask(task.id, { deliveryDate: dateToSave });
         setIsEditingDate(false);
     };
 
+    const handleSaveAssignee = () => {
+        if (newAssignee) {
+            onUpdateTask(task.id, { assignedTo: newAssignee });
+            setIsEditingAssignee(false);
+        }
+    };
+
     const canDelete = currentUser.role === 'Coordinador';
     const canUpdate = currentUser.role === 'Coordinador' || currentUser.name === assignedTo;
+    const canChangeAssignee = currentUser.role === 'Coordinador';
 
     return (
         <>
@@ -196,8 +207,28 @@ const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser }) => {
 
                 <div className="mt-3 pt-3 border-t border-gray-200">
                     <div className="flex items-center justify-between text-sm text-gray-500">
-                        <div className="flex items-center"><User className="w-4 h-4 mr-2" /><span>{assignedTo}</span></div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center flex-grow min-w-0">
+                            <User className="w-4 h-4 mr-2 flex-shrink-0" />
+                            {isEditingAssignee && canChangeAssignee ? (
+                                <div className="flex items-center gap-1 w-full">
+                                    <select value={newAssignee} onChange={(e) => setNewAssignee(e.target.value)} className="flex-grow p-1 border border-gray-300 rounded-md text-sm bg-white min-w-0">
+                                        {allUsers.map(user => <option key={user.uid} value={user.name}>{user.name}</option>)}
+                                    </select>
+                                    <button onClick={handleSaveAssignee} className="text-green-500 p-1 flex-shrink-0"><Check size={16}/></button>
+                                    <button onClick={() => setIsEditingAssignee(false)} className="text-red-500 p-1 flex-shrink-0"><X size={16}/></button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center min-w-0">
+                                    <span className="truncate">{assignedTo}</span>
+                                    {canChangeAssignee && (
+                                        <button onClick={() => setIsEditingAssignee(true)} className="ml-2 text-gray-400 hover:text-indigo-600 flex-shrink-0">
+                                            <Edit size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                             <button onClick={() => setIsCommentsOpen(true)} className="text-gray-500 hover:text-indigo-600 p-1"><MessageSquare className="w-4 h-4" /></button>
                             {canDelete && <button onClick={() => onDeleteTask(task.id)} className="text-red-500 hover:text-red-700 p-1" aria-label="Eliminar tarea"><Trash2 className="w-4 h-4" /></button>}
                         </div>
@@ -215,7 +246,7 @@ const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser }) => {
     );
 };
 
-const TaskColumn = ({ title, tasks, onUpdateTask, onDeleteTask, currentUser }) => {
+const TaskColumn = ({ title, tasks, onUpdateTask, onDeleteTask, currentUser, allUsers }) => {
     const columnStyles = {
         'Pendiente': { bg: 'bg-blue-50', border: 'border-blue-500' },
         'En Progreso': { bg: 'bg-yellow-50', border: 'border-yellow-500' },
@@ -225,7 +256,7 @@ const TaskColumn = ({ title, tasks, onUpdateTask, onDeleteTask, currentUser }) =
     return (
         <div className={`flex-1 min-w-[300px] p-4 rounded-xl ${style.bg}`}>
             <h3 className={`font-bold text-lg mb-4 pb-2 border-b-2 ${style.border} text-gray-700`}>{title} ({tasks.length})</h3>
-            <div>{tasks.map(task => <TaskCard key={task.id} task={task} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} currentUser={currentUser}/>)}</div>
+            <div>{tasks.map(task => <TaskCard key={task.id} task={task} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} currentUser={currentUser} allUsers={allUsers}/>)}</div>
         </div>
     );
 };
@@ -398,9 +429,8 @@ export default function App() {
                 tasksData.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
                 setTasks(tasksData);
             },
-            (err) => { // <-- NUEVO: Manejo de errores para las tareas
+            (err) => {
                 console.error("Error al cargar tareas:", err);
-                // Opcional: podrías mostrar un error en la UI principal
             }
         );
         return () => unsubscribeTasks();
@@ -463,8 +493,6 @@ export default function App() {
     };
 
     const handleDeleteUser = async (userId, userName) => {
-        // En una app real, esto debe ser una función de backend segura.
-        // La alerta reemplaza a window.confirm para evitar problemas en iframes.
         alert(`La eliminación de usuarios desde el cliente no es segura y está deshabilitada. Se necesita una función de backend.`);
     };
 
@@ -517,9 +545,9 @@ export default function App() {
                 )}
                 <div className="container mx-auto">
                     <div className="flex flex-col md:flex-row gap-6 overflow-x-auto pb-4">
-                        <TaskColumn title="Pendiente" tasks={pendingTasks} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} currentUser={currentUser} />
-                        <TaskColumn title="En Progreso" tasks={inProgressTasks} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} currentUser={currentUser} />
-                        <TaskColumn title="Completada" tasks={completedTasks} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} currentUser={currentUser} />
+                        <TaskColumn title="Pendiente" tasks={pendingTasks} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} currentUser={currentUser} allUsers={allUsers} />
+                        <TaskColumn title="En Progreso" tasks={inProgressTasks} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} currentUser={currentUser} allUsers={allUsers} />
+                        <TaskColumn title="Completada" tasks={completedTasks} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} currentUser={currentUser} allUsers={allUsers} />
                     </div>
                 </div>
             </main>
