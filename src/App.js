@@ -85,9 +85,20 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
     const commentsCollectionRef = collection(db, `artifacts/${appId}/public/data/tasks/${taskId}/comments`);
   
     useEffect(() => {
-      const q = query(commentsCollectionRef, orderBy('createdAt', 'asc'));
+      // FIX: Se elimina orderBy para evitar errores si falta el índice en Firestore.
+      // La ordenación ahora se realiza en el lado del cliente.
+      const q = query(commentsCollectionRef);
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        setComments(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const commentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Ordenar los comentarios por fecha en el cliente (más antiguos primero)
+        commentsData.sort((a, b) => {
+            const timeA = a.createdAt?.toMillis() || 0;
+            const timeB = b.createdAt?.toMillis() || 0;
+            return timeA - timeB;
+        });
+
+        setComments(commentsData);
         setLoading(false);
       });
       return () => unsubscribe();
@@ -373,9 +384,20 @@ export default function App() {
 
      useEffect(() => {
         if (!currentUser) return;
-        const q = query(tasksCollectionRef, orderBy('createdAt', 'desc'));
+        
+        // FIX: Se elimina orderBy para evitar errores si falta el índice en Firestore.
+        const q = query(tasksCollectionRef);
         const unsubscribeTasks = onSnapshot(q, (snapshot) => {
-            setTasks(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+            const tasksData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            
+            // Ordenar las tareas por fecha en el cliente (más nuevas primero)
+            tasksData.sort((a, b) => {
+                const timeA = a.createdAt?.toMillis() || 0;
+                const timeB = b.createdAt?.toMillis() || 0;
+                return timeB - timeA; // Orden descendente
+            });
+
+            setTasks(tasksData);
         });
         return () => unsubscribeTasks();
     }, [currentUser]);
