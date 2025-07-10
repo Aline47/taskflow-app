@@ -400,28 +400,36 @@ export default function App() {
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                const userDocQuery = query(usersCollectionRef, where("uid", "==", user.uid));
-                const userDocSnapshot = await getDocs(userDocQuery);
-                if (!userDocSnapshot.empty) {
-                    setCurrentUser({ uid: user.uid, email: user.email, ...userDocSnapshot.docs[0].data() });
-                } else {
-                    await signOut(auth);
-                    setCurrentUser(null);
-                }
+                // No establecemos currentUser aquí, esperamos a que el listener de usuarios lo haga
             } else {
                 setCurrentUser(null);
+                setAuthLoading(false);
             }
-            setAuthLoading(false);
         });
 
         const unsubscribeUsers = onSnapshot(usersCollectionRef, 
             (snapshot) => {
-                setAllUsers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+                const usersData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                setAllUsers(usersData);
+                
+                const loggedInUser = auth.currentUser;
+                if (loggedInUser) {
+                    const currentUserData = usersData.find(u => u.uid === loggedInUser.uid);
+                    if (currentUserData) {
+                        setCurrentUser(currentUserData);
+                    } else {
+                        // El usuario está en Auth pero no en Firestore, lo deslogueamos.
+                        signOut(auth);
+                        setCurrentUser(null);
+                    }
+                }
                 setUsersLoading(false); 
+                setAuthLoading(false);
             },
             (error) => {
                 console.error("Error fetching users:", error);
                 setUsersLoading(false);
+                setAuthLoading(false);
             }
         );
 
