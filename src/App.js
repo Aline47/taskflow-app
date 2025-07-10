@@ -21,7 +21,7 @@ import {
     signOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { Plus, User, LogIn, LogOut, Loader2, Users, Trash2, ShieldCheck, UserCheck, UserPlus, X, Eye, EyeOff, ClipboardCheck } from 'lucide-react';
+import { Plus, User, LogIn, LogOut, Loader2, Users, Trash2, ShieldCheck, UserCheck, UserPlus, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
 
 // --- Configuración de Firebase ---
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG 
@@ -39,8 +39,8 @@ const auth = getAuth(app);
 
 const AppLogo = () => (
     <div className="flex items-center gap-2">
-        <ClipboardCheck className="w-8 h-8 text-indigo-600" />
-        <span className="text-2xl font-bold text-gray-800">TaskFlow</span>
+        <RefreshCw className="w-8 h-8 text-indigo-600" />
+        <span className="text-2xl font-bold text-gray-800">Taysync</span>
     </div>
 );
 
@@ -240,7 +240,7 @@ const AuthScreen = ({ onLogin, onRegister, error, isRegisterMode }) => {
         <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-indigo-50 via-white to-blue-50 p-4">
             <div className="w-full max-w-sm p-8 bg-white rounded-xl shadow-2xl text-center">
                 <TeamworkIllustration />
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">{isRegisterMode ? 'Registrar Coordinador' : 'Bienvenido a TaskFlow'}</h1>
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">{isRegisterMode ? 'Registrar Coordinador' : 'Bienvenido a Taysync'}</h1>
                 <p className="text-gray-600 mb-8">{isRegisterMode ? 'Crea la primera cuenta de administrador.' : 'Ingresa con tu email y contraseña.'}</p>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {isRegisterMode && <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre completo" className="w-full p-3 border border-gray-300 rounded-md text-center focus:ring-2 focus:ring-indigo-500" required />}
@@ -255,7 +255,7 @@ const AuthScreen = ({ onLogin, onRegister, error, isRegisterMode }) => {
                     </button>
                 </form>
             </div>
-            <footer className="mt-8 text-sm text-gray-500"><p>ID de la Sesión: {appId}</p></footer>
+            <footer className="mt-8 text-sm text-gray-500"><p>ID de la Sesión para compartir: {appId}</p></footer>
         </div>
     );
 };
@@ -394,7 +394,11 @@ export default function App() {
     const handleDeleteUser = async (userId, userName) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar a ${userName}? Esta acción no se puede deshacer y borrará su cuenta de acceso.`)) {
             try {
+                // This is a simplified approach for client-side deletion.
+                // In a real-world app, this should be a secured backend function.
                 await deleteDoc(doc(db, `artifacts/${appId}/public/data/users`, userId));
+                // Note: This does not delete the user from Firebase Auth.
+                // A backend function is required for that.
                 alert(`Usuario ${userName} eliminado de la base de datos.`);
             } catch (error) {
                 console.error("Error deleting user from Firestore: ", error);
