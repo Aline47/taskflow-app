@@ -190,7 +190,7 @@ const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser, allUsers, isR
                     <div className="flex justify-between items-center">
                         <span>Entrega:</span>
                         {isEditingDate && canUpdate ? (
-                            <div className="flex items-center gap-1"><input type="date" value={newDeliveryDate} onChange={(e) => setNewDeliveryDate(e.target.value)} className="bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 p-1 rounded text-xs"/><button onClick={handleSaveDate} className="text-green-500"><Check size={16}/></button><button onClick={() => setIsEditingDate(false)} className="text-red-500"><X size={16}/></button></div>
+                            <div className="flex items-center gap-1"><input type="date" value={newDeliveryDate} onChange={(e) => setNewDeliveryDate(e.target.value)} className="bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 p-1 rounded text-xs"/><button onClick={() => {onUpdateTask(task.id, { deliveryDate: newDeliveryDate ? Timestamp.fromDate(new Date(newDeliveryDate)) : null }); setIsEditingDate(false);}} className="text-green-500"><Check size={16}/></button><button onClick={() => setIsEditingDate(false)} className="text-red-500"><X size={16}/></button></div>
                         ) : (
                             <div className="flex items-center gap-2"><span>{formatDate(task.deliveryDate)}</span>{canUpdate && <button onClick={() => setIsEditingDate(true)}><Calendar size={14}/></button>}</div>
                         )}
@@ -377,6 +377,7 @@ export default function App() {
         const unsubscribeUsers = onSnapshot(usersCollectionRef, (usersSnapshot) => {
             const usersData = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
             setAllUsers(usersData);
+
             const unsubscribeAuth = onAuthStateChanged(auth, (authUser) => {
                 if (authUser) {
                     const userProfile = usersData.find(u => u.uid === authUser.uid);
@@ -386,11 +387,13 @@ export default function App() {
                 }
                 setLoading(false);
             });
+
             return () => unsubscribeAuth();
         }, (error) => {
             console.error("Error al cargar usuarios:", error);
             setLoading(false);
         });
+
         return () => unsubscribeUsers();
     }, []);
 
@@ -434,7 +437,7 @@ export default function App() {
 
     const filteredTasks = useMemo(() => {
         return tasks.filter(task => {
-            const searchTermMatch = searchTerm === '' || task.title.toLowerCase().includes(searchTerm.toLowerCase()) || task.description.toLowerCase().includes(searchTerm.toLowerCase());
+            const searchTermMatch = searchTerm === '' || task.title.toLowerCase().includes(searchTerm.toLowerCase()) || (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
             const userFilterMatch = filterUser === '' || task.assignedTo === filterUser;
             return searchTermMatch && userFilterMatch;
         });
