@@ -366,7 +366,12 @@ export default function App() {
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [isDashboardOpen, setIsDashboardOpen] = useState(false);
     const [authError, setAuthError] = useState('');
-    const [isDarkMode, setIsDarkMode] = useState(false);
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('taysync-dark-mode') === 'true';
+        }
+        return false;
+    });
     const [searchTerm, setSearchTerm] = useState('');
     const [filterUser, setFilterUser] = useState('');
 
@@ -409,8 +414,14 @@ export default function App() {
     }, [currentUser]);
 
     useEffect(() => {
-        if (isDarkMode) document.documentElement.classList.add('dark');
-        else document.documentElement.classList.remove('dark');
+        const root = window.document.documentElement;
+        if (isDarkMode) {
+            root.classList.add('dark');
+            localStorage.setItem('taysync-dark-mode', 'true');
+        } else {
+            root.classList.remove('dark');
+            localStorage.setItem('taysync-dark-mode', 'false');
+        }
     }, [isDarkMode]);
 
     const handleRegister = async (email, password, name) => {
