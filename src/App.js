@@ -9,8 +9,6 @@ import {
     doc, 
     serverTimestamp,
     query,
-    where,
-    getDocs,
     deleteDoc,
     setDoc,
     Timestamp
@@ -86,7 +84,7 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
             setLoading(false);
         });
       return () => unsubscribe();
-    }, [taskId]);
+    }, [taskId, commentsCollectionRef]);
   
     const handleAddComment = async (e) => {
       e.preventDefault();
@@ -400,7 +398,7 @@ export default function App() {
         });
 
         return () => unsubscribeUsers();
-    }, []);
+    }, [usersCollectionRef]);
 
     useEffect(() => {
         if (!currentUser) return;
@@ -411,7 +409,7 @@ export default function App() {
             setTasks(tasksData);
         }, (err) => { console.error("Error al cargar tareas:", err); });
         return () => unsubscribeTasks();
-    }, [currentUser]);
+    }, [currentUser, tasksCollectionRef]);
 
     useEffect(() => {
         const root = window.document.documentElement;
