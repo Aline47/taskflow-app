@@ -41,7 +41,39 @@ const formatDate = (timestamp, includeTime = false) => {
     return date.toLocaleDateString('es-ES', includeTime ? {...dateOptions, ...timeOptions} : dateOptions);
 };
 
+const getInitials = (name = '') => {
+    return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+};
+
+const avatarColors = [
+    'bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-yellow-500', 'bg-lime-500', 
+    'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-sky-500',
+    'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500',
+    'bg-pink-500', 'bg-rose-500'
+];
+
+const getColorForName = (name = '') => {
+    const charCodeSum = name.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    return avatarColors[charCodeSum % avatarColors.length];
+};
+
 // --- Componentes Visuales ---
+const UserAvatar = ({ name, size = 'md' }) => {
+    const initials = getInitials(name);
+    const color = getColorForName(name);
+    const sizeClasses = {
+        'sm': 'w-6 h-6 text-xs',
+        'md': 'w-8 h-8 text-sm',
+        'lg': 'w-10 h-10 text-base'
+    };
+
+    return (
+        <div className={`flex-shrink-0 flex items-center justify-center rounded-full text-white font-bold ${color} ${sizeClasses[size]}`}>
+            {initials}
+        </div>
+    );
+};
+
 const AppLogo = () => (
     <div className="flex items-center gap-2">
         <RefreshCw className="w-8 h-8 text-indigo-600" />
@@ -107,10 +139,13 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
             {error && <div className="text-red-600 bg-red-100 p-3 rounded-md flex items-center gap-2"><AlertTriangle size={20}/><span>{error}</span></div>}
             {!loading && !error && comments.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center mt-8">No hay comentarios.</p>}
             {!loading && !error && comments.map(comment => (
-              <div key={comment.id} className="bg-gray-100 dark:bg-gray-700 p-3 rounded-md">
-                <p className="font-semibold text-sm text-indigo-700 dark:text-indigo-400">{comment.authorName}</p>
-                <p className="text-gray-700 dark:text-gray-300 break-words">{comment.text}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 text-right mt-1">{formatDate(comment.createdAt, true)}</p>
+              <div key={comment.id} className="flex items-start gap-3 bg-gray-100 dark:bg-gray-700 p-3 rounded-md">
+                <UserAvatar name={comment.authorName} size="sm" />
+                <div className="flex-1">
+                    <p className="font-semibold text-sm text-indigo-700 dark:text-indigo-400">{comment.authorName}</p>
+                    <p className="text-gray-700 dark:text-gray-300 break-words">{comment.text}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 text-right mt-1">{formatDate(comment.createdAt, true)}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -197,11 +232,11 @@ const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser, allUsers, isR
 
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                     <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                        <div className="flex items-center flex-grow min-w-0"><User className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <div className="flex items-center flex-grow min-w-0">
                             {isEditingAssignee && canChangeAssignee ? (
                                 <div className="flex items-center gap-1 w-full"><select value={newAssignee} onChange={(e) => setNewAssignee(e.target.value)} className="flex-grow p-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 min-w-0">{allUsers.map(user => <option key={user.uid} value={user.name}>{user.name}</option>)}</select><button onClick={() => {onUpdateTask(task.id, { assignedTo: newAssignee }); setIsEditingAssignee(false);}} className="text-green-500 p-1 flex-shrink-0"><Check size={16}/></button><button onClick={() => setIsEditingAssignee(false)} className="text-red-500 p-1 flex-shrink-0"><X size={16}/></button></div>
                             ) : (
-                                <div className="flex items-center min-w-0"><span className="truncate">{task.assignedTo}</span>{canChangeAssignee && (<button onClick={() => setIsEditingAssignee(true)} className="ml-2 text-gray-400 hover:text-indigo-600 flex-shrink-0"><Edit size={14} /></button>)}</div>
+                                <div className="flex items-center min-w-0 gap-2"><UserAvatar name={task.assignedTo} size="sm" /><span className="truncate">{task.assignedTo}</span>{canChangeAssignee && (<button onClick={() => setIsEditingAssignee(true)} className="ml-2 text-gray-400 hover:text-indigo-600 flex-shrink-0"><Edit size={14} /></button>)}</div>
                             )}
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0 ml-2"><button onClick={() => setIsCommentsOpen(true)} className="text-gray-500 hover:text-indigo-600 p-1"><MessageSquare className="w-4 h-4" /></button>{canDelete && <button onClick={() => onDeleteTask(task.id)} className="text-red-500 hover:text-red-700 p-1" aria-label="Eliminar tarea"><Trash2 className="w-4 h-4" /></button>}</div>
@@ -281,7 +316,7 @@ const UserManagementModal = ({ isOpen, onClose, onAddUser, onDeleteUser, onUpdat
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4"><div ref={modalRef} className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-lg"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Gestionar Usuarios</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><X className="w-6 h-6 text-gray-600 dark:text-gray-300"/></button></div><div><form onSubmit={handleAddUser} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 border dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50"><input type="text" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Nombre completo" className="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required /><input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} placeholder="Email de acceso" className="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required /><input type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} placeholder="Contraseña" className="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required /><select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)} className="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"><option value="Colaborador">Colaborador</option><option value="Coordinador">Coordinador</option></select><button type="submit" className="sm:col-span-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center"><UserPlus className="w-5 h-5 mr-2"/>Añadir Usuario</button>{error && <p className="text-red-500 text-sm sm:col-span-2">{error}</p>}</form><div className="space-y-3 max-h-80 overflow-y-auto pr-2">{allUsers.map(user => (<div key={user.uid} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900/50 border dark:border-gray-700 rounded-md"><div><p className="font-semibold text-gray-800 dark:text-gray-100">{user.name}</p><p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>{currentUser.uid === user.uid ? (<p className="text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-2 py-1 rounded-full inline-block mt-1">{user.role}</p>) : (<select value={user.role} onChange={(e) => onUpdateUserRole(user.uid, e.target.value)} className="mt-1 p-1 border border-gray-300 dark:border-gray-600 rounded-md text-xs w-full bg-white dark:bg-gray-700"><option value="Colaborador">Colaborador</option><option value="Coordinador">Coordinador</option></select>)}</div>{currentUser.uid !== user.uid && (<button onClick={() => onDeleteUser(user.uid, user.name)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50" aria-label={`Eliminar a ${user.name}`}><Trash2 className="w-5 h-5"/></button>)}</div>))}</div></div></div></div>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4"><div ref={modalRef} className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-lg"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Gestionar Usuarios</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><X className="w-6 h-6 text-gray-600 dark:text-gray-300"/></button></div><div><form onSubmit={handleAddUser} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 border dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50"><input type="text" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Nombre completo" className="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required /><input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} placeholder="Email de acceso" className="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required /><input type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} placeholder="Contraseña" className="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required /><select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)} className="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"><option value="Colaborador">Colaborador</option><option value="Coordinador">Coordinador</option></select><button type="submit" className="sm:col-span-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center"><UserPlus className="w-5 h-5 mr-2"/>Añadir Usuario</button>{error && <p className="text-red-500 text-sm sm:col-span-2">{error}</p>}</form><div className="space-y-3 max-h-80 overflow-y-auto pr-2">{allUsers.map(user => (<div key={user.uid} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900/50 border dark:border-gray-700 rounded-md"><div className="flex items-center gap-3"><UserAvatar name={user.name} size="md" /><div><p className="font-semibold text-gray-800 dark:text-gray-100">{user.name}</p><p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>{currentUser.uid === user.uid ? (<p className="text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-2 py-1 rounded-full inline-block mt-1">{user.role}</p>) : (<select value={user.role} onChange={(e) => onUpdateUserRole(user.uid, e.target.value)} className="mt-1 p-1 border border-gray-300 dark:border-gray-600 rounded-md text-xs w-full bg-white dark:bg-gray-700"><option value="Colaborador">Colaborador</option><option value="Coordinador">Coordinador</option></select>)}</div></div>{currentUser.uid !== user.uid && (<button onClick={() => onDeleteUser(user.uid, user.name)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50" aria-label={`Eliminar a ${user.name}`}><Trash2 className="w-5 h-5"/></button>)}</div>))}</div></div></div></div>
     );
 };
 
@@ -467,7 +502,13 @@ export default function App() {
                 <div className="container mx-auto flex justify-between items-center flex-wrap gap-4">
                     <AppLogo />
                     <div className="flex items-center gap-2 sm:gap-4">
-                        <div className="text-right"><div className="flex items-center gap-2 font-semibold">{currentUser.role === 'Coordinador' ? <ShieldCheck className="w-5 h-5 text-green-500"/> : <UserCheck className="w-5 h-5 text-blue-500"/>}{currentUser.name}</div><p className="text-sm text-gray-500 dark:text-gray-400">{currentUser.role}</p></div>
+                        <div className="flex items-center gap-3">
+                            <UserAvatar name={currentUser.name} size="lg" />
+                            <div className="text-right">
+                                <p className="font-semibold">{currentUser.name}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{currentUser.role}</p>
+                            </div>
+                        </div>
                         {currentUser.role === 'Coordinador' && (<button onClick={() => setIsDashboardOpen(true)} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-lg shadow-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"><BarChart2 className="w-5 h-5" /></button>)}
                         {currentUser.role === 'Coordinador' && (<button onClick={() => setIsUserModalOpen(true)} className="bg-gray-700 dark:bg-gray-600 text-white px-3 py-2 rounded-lg shadow hover:bg-gray-800 dark:hover:bg-gray-500 transition-colors flex items-center gap-2"><Users className="w-5 h-5" /></button>)}
                         <button onClick={() => setIsDarkMode(!isDarkMode)} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-lg shadow-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">{isDarkMode ? <Sun/> : <Moon/>}</button>
