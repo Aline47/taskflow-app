@@ -57,8 +57,8 @@ const getColorForName = (name = '') => {
     return avatarColors[charCodeSum % avatarColors.length];
 };
 
-// --- Componentes Visuales ---
-const UserAvatar = ({ name, size = 'md' }) => {
+// --- Componentes Visuales Optimizados ---
+const UserAvatar = React.memo(({ name, size = 'md' }) => {
     const initials = getInitials(name);
     const color = getColorForName(name);
     const sizeClasses = {
@@ -72,16 +72,16 @@ const UserAvatar = ({ name, size = 'md' }) => {
             {initials}
         </div>
     );
-};
+});
 
-const AppLogo = () => (
+const AppLogo = React.memo(() => (
     <div className="flex items-center gap-2">
         <RefreshCw className="w-8 h-8 text-indigo-600" />
         <span className="text-2xl font-bold text-gray-800 dark:text-gray-100">Taysync</span>
     </div>
-);
+));
 
-const TeamworkIllustration = () => (
+const TeamworkIllustration = React.memo(() => (
     <svg width="100%" height="100%" viewBox="0 0 200 150" className="w-48 h-48 mx-auto text-indigo-500 mb-4">
         <rect x="10" y="50" width="180" height="90" rx="10" fill="none" stroke="currentColor" strokeWidth="2"/>
         <path d="M10 70 H 190" stroke="currentColor" strokeWidth="1" strokeDasharray="4"/>
@@ -91,7 +91,7 @@ const TeamworkIllustration = () => (
         <path d="M30 85 h 60" stroke="currentColor" strokeWidth="2" /><path d="M30 105 h 80" stroke="currentColor" strokeWidth="2" /><path d="M30 125 h 50" stroke="currentColor" strokeWidth="2" />
         <path d="M130 85 h 40" stroke="currentColor" strokeWidth="2" /><path d="M130 105 h 30" stroke="currentColor" strokeWidth="2" />
     </svg>
-);
+));
 
 // --- Componentes de la Interfaz ---
 
@@ -100,9 +100,9 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
     const [newComment, setNewComment] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const commentsCollectionRef = collection(db, `artifacts/${appId}/public/data/tasks/${taskId}/comments`);
-  
+    
     useEffect(() => {
+      const commentsCollectionRef = collection(db, `artifacts/${appId}/public/data/tasks/${taskId}/comments`);
       const q = query(commentsCollectionRef);
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const commentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -116,12 +116,13 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
             setLoading(false);
         });
       return () => unsubscribe();
-    }, [taskId, commentsCollectionRef]);
+    }, [taskId]);
   
     const handleAddComment = async (e) => {
       e.preventDefault();
       if (newComment.trim() === '') return;
       try {
+        const commentsCollectionRef = collection(db, `artifacts/${appId}/public/data/tasks/${taskId}/comments`);
         await addDoc(commentsCollectionRef, { text: newComment, authorName: currentUser.name, authorId: currentUser.uid, createdAt: serverTimestamp() });
         setNewComment('');
       } catch (err) {
@@ -158,7 +159,7 @@ const CommentsModal = ({ taskId, onClose, currentUser }) => {
     );
 };
 
-const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser, allUsers, isReadOnly = false }) => {
+const TaskCard = React.memo(({ task, onUpdateTask, onDeleteTask, currentUser, allUsers, isReadOnly = false }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedTitle, setEditedTitle] = useState(task.title);
     const [editedDescription, setEditedDescription] = useState(task.description);
@@ -246,9 +247,9 @@ const TaskCard = ({ task, onUpdateTask, onDeleteTask, currentUser, allUsers, isR
             </div>
         </>
     );
-};
+});
 
-const TaskColumn = ({ title, tasks, onUpdateTask, onDeleteTask, currentUser, allUsers, isReadOnly = false }) => {
+const TaskColumn = React.memo(({ title, tasks, onUpdateTask, onDeleteTask, currentUser, allUsers, isReadOnly = false }) => {
     const columnStyles = {
         'Pendiente': { bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-500' },
         'En Progreso': { bg: 'bg-yellow-50 dark:bg-yellow-900/20', border: 'border-yellow-500' },
@@ -259,7 +260,7 @@ const TaskColumn = ({ title, tasks, onUpdateTask, onDeleteTask, currentUser, all
     return (
         <div className={`flex-1 min-w-[300px] p-4 rounded-xl ${style.bg}`}><h3 className={`font-bold text-lg mb-4 pb-2 border-b-2 ${style.border} text-gray-700 dark:text-gray-300`}>{title} ({tasks.length})</h3><div>{tasks.map(task => <TaskCard key={task.id} task={task} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} currentUser={currentUser} allUsers={allUsers} isReadOnly={isReadOnly}/>)}</div></div>
     );
-};
+});
 
 const AddTaskModal = ({ isOpen, onClose, onAddTask, users, currentUser }) => {
     const [title, setTitle] = useState('');
